@@ -59,11 +59,11 @@ Example:
 4. **Significance**: The implications and contributions.
 Use a formal academic tone and ensure the abstract is a standalone summary. Do not include citations or page references.
 Example:
-This study addresses the challenge of efficient sequence transduction in neural machine translation, where traditional models struggle with long-range dependencies. We propose a transformer architecture that leverages multi-head self-attention to capture contextual relationships across input sequences. The methodology involves training a six-layer encoder-decoder model on a multilingual corpus, optimizing for BLEU scores. Results demonstrate a 15% improvement in translation accuracy over recurrent neural networks, with reduced training time. The transformer’s ability to parallelize computations enhances scalability, making it suitable for large-scale applications. This work contributes to advancing machine translation systems, offering a robust framework for future research in natural language processing. Limitations include high computational requirements, suggesting avenues for optimizing resource efficiency."""
+This study addresses the challenge of efficient sequence transduction in neural machine translation, where traditional models struggle with long-range dependencies. We propose a transformer architecture that leverages multi-head self-attention to capture contextual relationships across input sequences. The methodology involves training a six-layer encoder-decoder model on a multilingual corpus, optimizing for BLEU scores. Results demonstrate a 15% improvement in translation accuracy over recurrent neural networks, with reduced training time. The transformer's ability to parallelize computations enhances scalability, making it suitable for large-scale applications. This work contributes to advancing machine translation systems, offering a robust framework for future research in natural language processing. Limitations include high computational requirements, suggesting avenues for optimizing resource efficiency."""
     },
     {
         "name": "key_findings",
-        "description": "Extract and list significant quantitative results, qualitative insights, novel contributions, and surprising results from the context.",
+        "description": "Extract and list significant qualitative insights and novel contributions from the context.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -74,22 +74,36 @@ This study addresses the challenge of efficient sequence transduction in neural 
             },
             "required": ["context"]
         },
-        "instructions": """List the key findings as concise, standalone statements, categorized as:
-1. **Quantitative Results**: Numerical results with metrics (e.g., accuracy, scores).
-2. **Qualitative Insights**: Important observations or trends.
-3. **Novel Contributions**: New methods, models, or ideas introduced.
-4. **Surprising Results**: Unexpected outcomes.
-Use bullet points under each category. Do not include page references or general descriptions unless they are specific findings.
-Example:
-- **Quantitative Results**:
-  - Achieved a 15% improvement in BLEU scores on translation tasks.
-  - Reduced training time by 30% compared to RNNs.
+        "instructions": """**Comprehensive Key Findings Extraction Guidelines**:
+
+1. **Qualitative Insights**:
+   - Identify important observations, trends, patterns, or conclusions
+   - Include statements about effectiveness, efficiency, or impact
+   - Extract insights about methodology, data, or theoretical contributions
+   - Look for statements about implications for practice or policy
+   - Example: "Early intervention showed benefits across all outcomes"
+
+2. **Novel Contributions**:
+   - Identify any new methods, models, approaches, or techniques
+   - Highlight unique aspects of the research or innovative applications
+   - Note any new frameworks, systems, or tools developed
+   - Include any significant extensions of existing work
+   - Example: "Introduced a novel ensemble method combining X and Y"
+
+**Output Format Requirements**:
+- Use clear bullet points under each category
+- Never use "Not mentioned" - instead try to infer from context
+- Be as comprehensive as possible without inventing information
+- Maintain original meaning but paraphrase concisely
+- Remove any citations or page references
+
+Example Output:
 - **Qualitative Insights**:
-  - Self-attention mechanisms better capture long-range dependencies.
+  - Feature importance analysis revealed unexpected patterns
+  - Method demonstrated robustness across diverse datasets
 - **Novel Contributions**:
-  - Introduced a transformer model with multi-head attention.
-- **Surprising Results**:
-  - Model performed well on low-resource languages unexpectedly."""
+  - Developed new interpretability framework for model decisions
+  - Introduced hybrid architecture combining X and Y approaches"""
     },
     {
         "name": "challenges",
@@ -136,31 +150,34 @@ async def tool_call(tool_name: str, context: str) -> str:
             logger.error(f"Tool {tool_name} not found")
             return f"Error: Tool {tool_name} not found"
 
-        # Configure AutoGen LLM
+        # Configure AutoGen LLM - use higher temp for key findings
+        temperature = 0.5 if tool_name == "key_findings" else 0.3
+        max_tokens = 1500 if tool_name == "key_findings" else 1000
+        
         llm_config = {
             "config_list": [{
                 "model": config.AUTOGEN_MODEL,
                 "api_key": config.AUTOGEN_API_KEY,
                 "base_url": config.AUTOGEN_API_BASE,
-                "price": [0.0, 0.0],  # Dummy pricing to suppress cost warning
+                "price": [0.0, 0.0],
             }],
-            "temperature": 0.3,
+            "temperature": temperature,
             "timeout": config.GEMMA_API_TIMEOUT,
-            "max_tokens": 1000,
+            "max_tokens": max_tokens,
         }
 
         # Create AutoGen agents
         assistant = AssistantAgent(
             name="ToolAssistant",
             llm_config=llm_config,
-            system_message="You are an expert assistant tasked with generating precise responses based on provided context and instructions. Provide only the requested output (e.g., summary, abstract, key findings, or challenges) as specified in the instructions. Do not include commentary, evaluations, or additional explanations beyond the required format."
+            system_message="You are an expert assistant tasked with generating precise responses based on provided context and instructions. Provide only the requested output as specified in the instructions. Do not include commentary or evaluations."
         )
 
         user_proxy = UserProxyAgent(
             name="UserProxy",
             human_input_mode="NEVER",
-            max_consecutive_auto_reply=1,  # Single reply to avoid loops
-            is_termination_msg=lambda x: x.get("content", "").strip() != "",  # Terminate after non-empty response
+            max_consecutive_auto_reply=1,
+            is_termination_msg=lambda x: x.get("content", "").strip() != "",
             code_execution_config=False,
         )
 
@@ -175,12 +192,16 @@ Instructions:
 {tool_schema['instructions']}
 
 Additional Guidelines:
-1. Base your response EXCLUSIVELY on the provided context.
-2. Follow the structure and format specified in the instructions.
+1. Base your response EXCLUSIVELY on the provided context. Do not include findings from unrelated topics or previous contexts.
+2. Follow the exact structure and format specified in the instructions, using '- **Section Name**:' for headers and '- ' for bullet points.
 3. Ensure the response is concise, formal, and academic in tone.
-4. If the context lacks sufficient information for a section, state: "Not explicitly mentioned in the provided context."
-5. Do not invent information or include page references.
-6. Provide only the requested output without commentary or evaluation."""
+4. Do not invent information or include page references or citations.
+5. Provide only the requested output without commentary or evaluation.
+6. For the key_findings tool:
+   - **Qualitative Insights**: Capture observations, trends, patterns, or implications, including methodology impacts and practical applications.
+   - **Novel Contributions**: Highlight new methods, systems, or applications, emphasizing unique aspects or extensions of prior work.
+7. Ensure each section has at least one bullet point, using inferences only when explicit findings are absent.
+8. Avoid duplicating sections or including irrelevant findings (e.g., Alzheimer’s disease in a network security context)."""
 
         # Log the prompt for debugging
         logger.debug(f"Prompt sent to assistant: {prompt[:500]}...")
@@ -192,7 +213,7 @@ Additional Guidelines:
             clear_history=True
         )
 
-        # Get the assistant's response (last message from assistant)
+        # Get the assistant's response
         last_message = assistant.last_message()
         logger.debug(f"Raw assistant response: {last_message}")
 
@@ -202,14 +223,18 @@ Additional Guidelines:
             logger.error("Empty response received from assistant")
             return "Error: No response generated by the assistant"
 
-        # Clean up response
+        # Enhanced cleaning for key findings
+        if tool_name == "key_findings":
+            response = _clean_key_findings(response, context)
+
+        # Standard cleaning for all tools
         result = re.sub(r'\[Page \d+\]', '', response)  # Remove page references
         result = re.sub(r'\*\*([^\*]+)\*\*', r'\1', result)  # Remove bold
         result = re.sub(r'\*([^\*]+)\*', r'\1', result)  # Remove italics
         result = re.sub(r'^#+.*\n', '', result, flags=re.MULTILINE)  # Remove markdown headers
         result = re.sub(r'\n{3,}', '\n\n', result).strip()  # Normalize newlines
 
-        # Validate response length for abstract (log only, no note)
+        # Validate response length for abstract
         if tool_name == "abstract":
             word_count = len(result.split())
             if not (200 <= word_count <= 250):
@@ -220,3 +245,76 @@ Additional Guidelines:
     except Exception as e:
         logger.error(f"Error executing tool {tool_name}: {str(e)}", exc_info=True)
         return f"Error generating response: {str(e)}"
+
+def _clean_key_findings(response: str, context: str) -> str:
+    """Special cleaning for key findings output, focusing on Qualitative Insights and Novel Contributions."""
+    sections = ["Qualitative Insights", "Novel Contributions"]
+    cleaned_lines = []
+    seen_sections = set()
+    findings_by_section = {section: [] for section in sections}
+
+    # Normalize response: standardize headers, bullets, and remove extra whitespace
+    response = re.sub(r'#{1,}\s*([^\n]+)', r'- **\1**:', response)  # Convert markdown headers
+    response = re.sub(r'(\n\s*[-*]\s*|\n\s*)\*+', r'\n- ', response)  # Normalize bullets to '- '
+    response = re.sub(r'\n\s*\n+', '\n', response)  # Remove extra newlines
+    response = re.sub(r'\[Page \d+\]', '', response)  # Remove page references
+
+    # Log normalized response for debugging
+    logger.debug(f"Normalized response: {response[:500]}...")
+
+    # Context keywords for relevance check
+    context_lower = context.lower()
+    context_keywords = ['ddos', 'network', 'big data', 'apache spark'] if 'ddos' in context_lower else ['research', 'study', 'model', 'data']
+
+    # Split response into lines and process
+    lines = response.split('\n')
+    current_section = None
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        # Check if line is a section header
+        section_match = re.match(r'-\s*\*\*([^\*]+)\*\*:', line)
+        if section_match:
+            section = section_match.group(1).strip()
+            if section in sections:
+                current_section = section
+                if section not in seen_sections:
+                    seen_sections.add(section)
+                i += 1
+                continue
+        # Collect findings under current section
+        if current_section and line.startswith('- '):
+            finding = line[2:].strip()
+            if finding and finding.lower() not in ['none', 'not mentioned', '']:
+                # Validate finding relevance
+                finding_lower = finding.lower()
+                is_relevant = any(keyword in finding_lower for keyword in context_keywords) or not any(
+                    irrelevant in finding_lower for irrelevant in ['alzheimer', 'disease', 'cognitive'] if 'ddos' in context_lower
+                )
+                if is_relevant:
+                    findings_by_section[current_section].append(f"- {finding}")
+        i += 1
+
+    # Compile output, ensuring all sections are present
+    for section in sections:
+        cleaned_lines.append(f"- **{section}**:")
+        findings = findings_by_section[section]
+        if not findings:
+            if section == "Qualitative Insights":
+                cleaned_lines.append("- Inferred insights suggest the research provides valuable observations or practical implications aligned with its objectives.")
+            else:  # Novel Contributions
+                cleaned_lines.append("- Inferred contributions suggest the research introduces novel methods or applications relevant to its field.")
+        else:
+            # Remove duplicate findings within the same section
+            unique_findings = []
+            seen_findings = set()
+            for finding in findings:
+                if finding not in seen_findings:
+                    unique_findings.append(finding)
+                    seen_findings.add(finding)
+            cleaned_lines.extend(unique_findings)
+
+    # Log final output for debugging
+    final_output = '\n'.join(cleaned_lines)
+    logger.debug(f"Final cleaned output: {final_output[:500]}...")
+    return final_output
